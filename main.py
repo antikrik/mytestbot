@@ -57,6 +57,13 @@ if not MOTIVATIONAL_PHRASES:
 # ... (остальной код остается без изменений, включая функции start, quote, echo и main)
 
 
+MY_TELEGRAM_ID = os.environ.get("MY_TELEGRAM_ID")
+if MY_TELEGRAM_ID: # Проверяем, что ID есть, иначе не будем пытаться отправлять уведомления
+    MY_TELEGRAM_ID = int(MY_TELEGRAM_ID) # Конвертируем в число, потому что ID - это число
+
+
+
+
 # Функция-обработчик для команды /start
 async def start(update: Update, context):
     """Отправляет сообщение, когда получена команда /start."""
@@ -87,19 +94,18 @@ def main():
 
     # Добавляем обработчики команд.
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("quote", quote)) # Новый обработчик для команды /quote
+    application.add_handler(CommandHandler("quote", quote)) 
 
     # Добавляем обработчик для любых текстовых сообщений.
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
-  
+
     # ОЧЕНЬ ВАЖНО: Убедимся, что старые вебхуки удалены
-    # Эта строка добавляется ПЕРЕД application.run_polling()
-    logging.info("Проверяем и удаляем старые вебхуки...")
-    application.bot.delete_webhook() # ЭТО НОВАЯ СТРОКА
-  
-    # Запускаем бота в режиме polling. Он будет постоянно проверять новые сообщения.
+    # Вместо: application.bot.delete_webhook()
+    # Мы будем вызывать delete_webhook непосредственно перед run_polling
+    # и используем специальный метод для асинхронных операций вне async def
+    
     logging.info("Мотивационный бот запущен в режиме polling. Ожидаю сообщений...")
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
+    application.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True) # Добавил drop_pending_updates=True
 
 if __name__ == "__main__":
     main()
