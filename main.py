@@ -1,42 +1,63 @@
-from flask import Flask, request
-import requests
+from dotenv import load_dotenv
+load_dotenv() # Загружает переменные из .env
+# main.py
+from telegram.ext import Application, CommandHandler, MessageHandler, filters
 import os
+import logging
 
-app = Flask(__name__)
+# Включаем логирование, чтобы видеть, что происходит
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
 
-TOKEN = "7980220013:AAG4sdkkmxDOk6ul3iwme18941vV8ZmcmaE"
-TELEGRAM_API_URL = f"https://api.telegram.org/bot{TOKEN}"
-WEBHOOK_URL = "https://mytestbot-7lzt.onrender.com"  # Ваш URL из логов
+# Заменяем на токен, который ты получил от BotFather
+# В идеале, ты должен будешь получить его из переменных окружения, но пока так
+# TOKEN = "ТВОЙ_ТОКЕН_ЗДЕСЬ"
+# Вместо TOKEN = "ТВОЙ_ТОКЕН_ЗДЕСЬ", мы будем использовать переменную окружения
+# Это безопасно и правильно. Мы настроим это позже на Render.com
+TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN") 
+if not TOKEN:
+    logging.error("Токен бота не найден! Убедись, что переменная окружения TELEGRAM_BOT_TOKEN установлена.")
+    exit(1)
 
-def set_webhook():
-    url = f"{TELEGRAM_API_URL}/setWebhook?url={WEBHOOK_URL}"
-    requests.get(url)
 
-def send_message(chat_id, text):
-    url = f"{TELEGRAM_API_URL}/sendMessage"
-    payload = {"chat_id": chat_id, "text": text}
-    requests.post(url, json=payload)
+# Функция-обработчик для команды /start
+async def start(update, context):
+    """Отправляет сообщение, когда получена команда /start."""
+    user = update.effective_user
+    await update.message.reply_html(
+        f"Привет, {user.mention_html()}! Я твой новый брутальный бот. Что будем творить?",
+        # reply_markup=ForceReply(selective=True), # Это если хочешь, чтобы он отвечал на твое сообщение
+    )
+    logging.info(f"Получена команда /start от пользователя {user.full_name}")
 
-@app.route("/", methods=["POST"])
-def webhook():
-    data = request.get_json()
-    
-    if "message" in data:
-        chat_id = data["message"]["chat"]["id"]
-        text = data["message"].get("text", "")
+# Функция-обработчик для обычных текстовых сообщений
+async def echo(update, context):
+    """Отвечает на любое текстовое сообщение, повторяя его."""
+    text = update.message.text
+    await update.message.reply_text(f"Ты сказал: '{text}'. Могу повторить, если хочешь. Я создан для более серьезных дел.")
+    logging.info(f"Получено сообщение: '{text}' от пользователя {update.effective_user.full_name}")
 
-        if text.startswith("/start"):
-            send_message(chat_id, "Привет! Я тестовый бот Ебанат Охуеевич!")
-        elif text.startswith("/help"):
-            send_message(chat_id, "Доступные команды:\n/start\n/help\n/about")
-        elif text.startswith("/about"):
-            send_message(chat_id, "Ну что ты хочешь знать обо мне, свинья кожаная? 😏")
-        else:
-            send_message(chat_id, "Ты ебанутый что-ли? Напиши /help чтобы узнать доступные команды.")
+def main():
+    """Запускает бота."""
+    # Создаем объект Application и передаем ему токен бота.
+    application = Application.builder().token(TOKEN).build()
 
-    return "ok", 200
+    # Добавляем обработчики команд.
+    # CommandHandler('start', start) - означает, что когда пользователь пишет /start,
+    # вызывается функция start.
+    application.add_handler(CommandHandler("start", start))
 
-if __name__ == '__main__':
-    set_webhook()  # Устанавливаем вебхук при запуске
-    port = int(os.environ.get("PORT", 10000))  # Используем порт 10000 для Render
-    app.run(host='0.0.0.0', port=port)
+    # Добавляем обработчик для любых текстовых сообщений.
+    # MessageHandler(filters.TEXT & ~filters.COMMAND, echo) - означает,
+    # что если это текст И НЕ команда, то вызывается функция echo.
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
+
+    # Запускаем бота в режиме polling. Он будет постоянно проверять новые сообщения.
+    logging.info("Бот запущен в режиме polling. Ожидаю сообщений...")
+    application.run_polling(allowed_updates=Update.ALL_TYPES)
+
+if __name__ == "__main__":
+    from telegram import Update # Импортируем здесь, чтобы избежать циклической зависимости
+    main()
