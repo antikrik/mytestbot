@@ -91,7 +91,12 @@ def main():
 
     # Добавляем обработчик для любых текстовых сообщений.
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
-
+  
+    # ОЧЕНЬ ВАЖНО: Убедимся, что старые вебхуки удалены
+    # Эта строка добавляется ПЕРЕД application.run_polling()
+    logging.info("Проверяем и удаляем старые вебхуки...")
+    application.bot.delete_webhook() # ЭТО НОВАЯ СТРОКА
+  
     # Запускаем бота в режиме polling. Он будет постоянно проверять новые сообщения.
     logging.info("Мотивационный бот запущен в режиме polling. Ожидаю сообщений...")
     application.run_polling(allowed_updates=Update.ALL_TYPES)
