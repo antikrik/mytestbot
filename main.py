@@ -7,6 +7,7 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 import os
 import logging
 import random
+import asyncio
 
 # Настройка логирования
 logging.basicConfig(
@@ -80,8 +81,13 @@ async def webhook():
     await application.process_update(update)
     return 'ok', 200
 
+# Асинхронная функция для установки вебхука
+async def set_webhook():
+    WEBHOOK_URL = "https://mytestbot-bwf9.onrender.com/webhook"
+    await application.bot.set_webhook(WEBHOOK_URL)
+
 # Запуск Flask
 if __name__ == '__main__':
-    WEBHOOK_URL = "https://mytestbot.onrender.com/webhook"
-    await application.bot.set_webhook(WEBHOOK_URL)
+    # Запускаем установку вебхука
+    asyncio.run(set_webhook())
     app.run(host='0.0.0.0', port=10000)
