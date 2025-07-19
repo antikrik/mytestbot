@@ -99,13 +99,11 @@ def main():
     # Добавляем обработчик для любых текстовых сообщений.
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
 
-    # ОЧЕНЬ ВАЖНО: Убедимся, что старые вебхуки удалены
-    # Вместо: application.bot.delete_webhook()
-    # Мы будем вызывать delete_webhook непосредственно перед run_polling
-    # и используем специальный метод для асинхронных операций вне async def
-    
+    # Запускаем бота в режиме polling. Он будет постоянно проверять новые сообщения.
+    # Добавление drop_pending_updates=True гарантирует, что старые вебхуки будут удалены
+    # и бот начнет работу с чистого листа.
     logging.info("Мотивационный бот запущен в режиме polling. Ожидаю сообщений...")
-    application.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True) # Добавил drop_pending_updates=True
+    application.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True) # <-- ВОТ ЭТО ИЗМЕНЕНИЕ
 
 if __name__ == "__main__":
     main()
