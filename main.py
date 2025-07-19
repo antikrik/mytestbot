@@ -7,8 +7,8 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters
 import os
 import logging
 import random
-import threading
-import time
+import asyncio
+from threading import Thread
 
 # Настройка логирования
 logging.basicConfig(
@@ -24,18 +24,10 @@ if not TOKEN:
     exit(1)
 
 # Загрузка мотивационных фраз
-def load_quotes():
-    try:
-        with open("quotes.txt", "r", encoding="utf-8") as f:
-            return [line.strip() for line in f if line.strip()]
-    except Exception as e:
-        logger.error(f"Ошибка загрузки цитат: {e}")
-        return [
-            "Если нет ветра, берись за весла.",
-            "Даже самый длинный путь начинается с первого шага."
-        ]
-
-MOTIVATIONAL_PHRASES = load_quotes()
+MOTIVATIONAL_PHRASES = [
+    "Если нет ветра, берись за весла.",
+    "Даже самый длинный путь начинается с первого шага."
+]
 
 # Создаем Flask-приложение
 app = Flask(__name__)
@@ -60,33 +52,31 @@ application.add_handler(CommandHandler("start", start))
 application.add_handler(CommandHandler("quote", quote))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
 
-# Функция для запуска Long Polling в отдельном потоке
-def run_polling():
-    logger.info("Запуск Long Polling в фоновом режиме...")
-    application.run_polling(
-        allowed_updates=Update.ALL_TYPES,
-        drop_pending_updates=True,
-        close_loop=False
-    )
+# Функция для запуска бота
+def run_bot():
+    logger.info("Запуск бота в режиме Long Polling...")
+    application.run_polling()
 
-# Вебхук для Render
+# Вебхук для Render (синхронная версия)
 @app.route('/webhook', methods=['POST'])
 def webhook():
     update = Update.de_json(request.get_json(), application.bot)
-    application.update_queue.put(update)
+    asyncio.run_coroutine_threadsafe(
+        application.process_update(update),
+        application.updater.dispatcher.loop
+    )
     return 'ok', 200
 
 # Эндпоинт для поддержания активности
-@app.route('/')
+@app.route('/wakeup')
 def wakeup():
     return "Бот активен", 200
 
 # Запуск приложения
 if __name__ == '__main__':
-    # Запускаем Long Polling в отдельном потоке
-    polling_thread = threading.Thread(target=run_polling)
-    polling_thread.daemon = True
-    polling_thread.start()
-
+    # Запускаем бота в отдельном потоке
+    bot_thread = Thread(target=run_bot, daemon=True)
+    bot_thread.start()
+    
     # Запускаем Flask-сервер
     app.run(host='0.0.0.0', port=10000)
