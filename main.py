@@ -74,13 +74,11 @@ application.add_handler(CommandHandler("start", start))
 application.add_handler(CommandHandler("quote", quote))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
 
+# Роут для вебхука (синхронная версия)
 @app.route('/webhook', methods=['POST'])
 def webhook():
     update = Update.de_json(request.get_json(), application.bot)
-    asyncio.run(application.process_update(update))  # <-- Синхронный вызов
-    return 'ok', 200
-    update = Update.de_json(request.get_json(), application.bot)
-    await application.process_update(update)
+    asyncio.run(application.process_update(update))  # Запуск асинхронного кода синхронно
     return 'ok', 200
 
 # Асинхронная функция для установки вебхука
