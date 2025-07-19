@@ -83,7 +83,7 @@ async def webhook():
 # Запуск Flask + вебхука
 if __name__ == '__main__':
     # Указываем URL вашего Render-приложения (замените `your-bot-name` на реальное имя)
-    WEBHOOK_URL = f"https://mytestbot.com/webhook"
+    WEBHOOK_URL = f"https://mytestbot-bwf9.onrender.com/webhook"
     
     # Устанавливаем вебхук
     await application.bot.set_webhook(WEBHOOK_URL)
