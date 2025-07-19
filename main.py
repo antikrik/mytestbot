@@ -61,9 +61,6 @@ MY_TELEGRAM_ID = os.environ.get("MY_TELEGRAM_ID")
 if MY_TELEGRAM_ID: # Проверяем, что ID есть, иначе не будем пытаться отправлять уведомления
     MY_TELEGRAM_ID = int(MY_TELEGRAM_ID) # Конвертируем в число, потому что ID - это число
 
-
-
-
 # Функция-обработчик для команды /start
 async def start(update: Update, context):
     """Отправляет сообщение, когда получена команда /start."""
