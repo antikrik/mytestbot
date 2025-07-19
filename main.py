@@ -36,7 +36,7 @@ async def start(update, context):
 async def echo(update, context):
     """Отвечает на любое текстовое сообщение, повторяя его."""
     text = update.message.text
-    await update.message.reply_text(f"Ты сказал: '{text}'. Могу повторить, если хочешь. Я создан для более серьезных дел.")
+    await update.message.reply_text(f"Ты сказал: '{text}'. Могу повторить, если хочешь. Я создан для более серьезных дел. Ясно тебе или нет?")
     logging.info(f"Получено сообщение: '{text}' от пользователя {update.effective_user.full_name}")
 
 def main():
