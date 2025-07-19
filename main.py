@@ -4,10 +4,12 @@ load_dotenv()
 from flask import Flask, request
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+from telegram.request import HTTPXRequest
 import os
 import logging
 import random
 import asyncio
+import telegram
 
 # Настройка логирования
 logging.basicConfig(
@@ -26,86 +28,87 @@ MOTIVATIONAL_PHRASES = []
 QUOTES_FILE = "quotes.txt"
 
 def load_quotes(filename):
-    phrases = []
     try:
         with open(filename, "r", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if line:
-                    phrases.append(line)
+            return [line.strip() for line in f if line.strip()]
     except FileNotFoundError:
         logging.error(f"Файл с цитатами '{filename}' не найден!")
-        return []
     except Exception as e:
-        logging.error(f"Ошибка при чтении файла '{filename}': {e}")
-        return []
-    
-    if not phrases:
-        logging.warning(f"Файл с цитатами '{filename}' пуст.")
-        phrases = [
-            "Если нет ветра, берись за весла.",
-            "Даже самый длинный путь начинается с первого шага."
-        ]
-    return phrases
+        logging.error(f"Ошибка при чтении файла: {e}")
+    return [
+        "Если нет ветра, берись за весла.",
+        "Даже самый длинный путь начинается с первого шага."
+    ]
 
 MOTIVATIONAL_PHRASES = load_quotes(QUOTES_FILE)
 
 # Создаем Flask-приложение
 app = Flask(__name__)
 
-# Инициализация бота
-application = Application.builder().token(TOKEN).build()
+# Инициализация бота с оптимизированными настройками
+application = Application.builder() \
+    .token(TOKEN) \
+    .request(HTTPXRequest(
+        connection_pool_size=1,
+        read_timeout=30,
+        write_timeout=30,
+        connect_timeout=30
+    )) \
+    .build()
 
 # Обработчики команд
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
     await update.message.reply_html(
-        f"Привет, {user.mention_html()}! Я твой мотивационный бот. Напиши /quote для цитаты."
+        f"Привет, {update.effective_user.mention_html()}! Я твой мотивационный бот."
     )
 
 async def quote(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    random_quote = random.choice(MOTIVATIONAL_PHRASES)
-    await update.message.reply_text(random_quote)
+    await update.message.reply_text(random.choice(MOTIVATIONAL_PHRASES))
 
 async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text
-    await update.message.reply_text(f"В смысле '{text}'? Напиши /quote для мотивации!")
+    await update.message.reply_text(f"Напиши /quote для мотивации!")
 
-# Добавляем обработчики после инициализации
+# Добавляем обработчики
 application.add_handler(CommandHandler("start", start))
 application.add_handler(CommandHandler("quote", quote))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
 
-# Инициализируем приложение перед использованием
-async def initialize_app():
-    await application.initialize()
-    await application.start()
-    return application
+# Роут для пробуждения сервиса
+@app.route('/wakeup')
+def wakeup():
+    return "OK", 200
 
-# Роут для вебхука
+# Роут для вебхука с обработкой ошибок
 @app.route('/webhook', methods=['POST'])
 async def webhook():
     try:
         update = Update.de_json(request.get_json(), application.bot)
         await application.process_update(update)
         return 'ok', 200
+    except telegram.error.TimedOut:
+        logging.warning("Таймаут соединения, повторяю запрос...")
+        await asyncio.sleep(1)
+        return await webhook()
     except Exception as e:
-        logging.error(f"Error processing update: {e}")
+        logging.error(f"Ошибка: {str(e)}")
         return 'error', 500
 
-# Асинхронная функция для установки вебхука
+# Асинхронная инициализация
 async def setup():
-    WEBHOOK_URL = "https://mytestbot-bwf9.onrender.com/webhook"
     await application.initialize()
     await application.start()
-    await application.bot.set_webhook(WEBHOOK_URL)
-    return application
+    await application.bot.set_webhook(
+        url="https://mytestbot-bwf9.onrender.com/webhook",
+        max_connections=1
+    )
 
-# Запуск Flask
+# Запуск приложения
 if __name__ == '__main__':
-    # Инициализируем и настраиваем вебхук
-    loop = asyncio.get_event_loop()
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
     loop.run_until_complete(setup())
     
-    # Запускаем Flask
-    app.run(host='0.0.0.0', port=10000)
+    try:
+        app.run(host='0.0.0.0', port=10000)
+    finally:
+        loop.run_until_complete(application.stop())
