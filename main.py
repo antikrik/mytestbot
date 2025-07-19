@@ -27,7 +27,7 @@ async def start(update, context):
     """Отправляет сообщение, когда получена команда /start."""
     user = update.effective_user
     await update.message.reply_html(
-        f"Привет, {user.mention_html()}! Я твой новый брутальный бот. Что будем творить?",
+        f"Привет, {user.mention_html()}! Я твой новый брутальный бот. Что будем творить? ААА?",
         # reply_markup=ForceReply(selective=True), # Это если хочешь, чтобы он отвечал на твое сообщение
     )
     logging.info(f"Получена команда /start от пользователя {user.full_name}")
