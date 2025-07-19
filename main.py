@@ -20,7 +20,7 @@ if not TOKEN:
     logging.error("Токен бота не найден!")
     exit(1)
 
-# Загрузка мотивационных фраз (ваш код без изменений)
+# Загрузка мотивационных фраз
 MOTIVATIONAL_PHRASES = []
 QUOTES_FILE = "quotes.txt"
 
@@ -49,11 +49,11 @@ def load_quotes(filename):
 
 MOTIVATIONAL_PHRASES = load_quotes(QUOTES_FILE)
 
-# Ваши обработчики команд (без изменений)
+# Обработчики команд
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-     await update.message.reply_html(
-        f"Привет, {user.mention_html()}! Меня зовут Ирина Нечитайло, и я твой мотивационный гуру. Просто напиши /quote, и я пришлю тебе авторский мотиватор — созданный именно для тебя!",
+    await update.message.reply_html(
+        f"Привет, {user.mention_html()}! Я твой мотивационный бот. Напиши /quote для цитаты."
     )
 
 async def quote(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -62,7 +62,7 @@ async def quote(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
-    await update.message.reply_text(f"В смысле '{text}' 🙄 Если тебе нужна мотивация, значит напиши /quote. Если хочешь начать сначала, напиши /start 😏")
+    await update.message.reply_text(f"В смысле '{text}'? Напиши /quote для мотивации!")
 
 # Создаем Flask-приложение
 app = Flask(__name__)
@@ -80,13 +80,8 @@ async def webhook():
     await application.process_update(update)
     return 'ok', 200
 
-# Запуск Flask + вебхука
+# Запуск Flask
 if __name__ == '__main__':
-    # Указываем URL вашего Render-приложения (замените `your-bot-name` на реальное имя)
-    WEBHOOK_URL = f"https://mytestbot-bwf9.onrender.com/webhook"
-    
-    # Устанавливаем вебхук
+    WEBHOOK_URL = "https://mytestbot.onrender.com/webhook"
     await application.bot.set_webhook(WEBHOOK_URL)
-    
-    # Запускаем Flask на порту 10000 (Render требует этот порт)
     app.run(host='0.0.0.0', port=10000)
