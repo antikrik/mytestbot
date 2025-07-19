@@ -9,106 +9,120 @@ import os
 import logging
 import random
 import asyncio
-import telegram
+import time
 
-# Настройка логирования
+# Конфигурация
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
+logger = logging.getLogger(__name__)
 
-# Получаем токен бота
 TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 if not TOKEN:
-    logging.error("Токен бота не найден!")
+    logger.error("Токен бота не найден!")
     exit(1)
 
-# Загрузка мотивационных фраз
-MOTIVATIONAL_PHRASES = []
-QUOTES_FILE = "quotes.txt"
-
-def load_quotes(filename):
+# Загрузка цитат с кэшированием
+def load_quotes(filename="quotes.txt"):
     try:
         with open(filename, "r", encoding="utf-8") as f:
             return [line.strip() for line in f if line.strip()]
-    except FileNotFoundError:
-        logging.error(f"Файл с цитатами '{filename}' не найден!")
     except Exception as e:
-        logging.error(f"Ошибка при чтении файла: {e}")
-    return [
-        "Если нет ветра, берись за весла.",
-        "Даже самый длинный путь начинается с первого шага."
-    ]
+        logger.error(f"Ошибка загрузки цитат: {e}")
+        return [
+            "Если нет ветра, берись за весла.",
+            "Даже самый длинный путь начинается с первого шага."
+        ]
 
-MOTIVATIONAL_PHRASES = load_quotes(QUOTES_FILE)
+MOTIVATIONAL_PHRASES = load_quotes()
 
-# Создаем Flask-приложение
+# Инициализация приложения
 app = Flask(__name__)
 
-# Инициализация бота с оптимизированными настройками
+# Конфигурация бота с увеличенными таймаутами
 application = Application.builder() \
     .token(TOKEN) \
     .request(HTTPXRequest(
-        connection_pool_size=1,
-        read_timeout=30,
-        write_timeout=30,
-        connect_timeout=30
+        connection_pool_size=2,
+        connect_timeout=60,
+        read_timeout=60,
+        write_timeout=60,
+        pool_timeout=60
     )) \
     .build()
 
-# Обработчики команд
+# Улучшенные обработчики с повторением при ошибках
+async def safe_send_message(update, text, parse_mode=None, max_retries=3):
+    for attempt in range(max_retries):
+        try:
+            if parse_mode:
+                return await update.message.reply_html(text)
+            return await update.message.reply_text(text)
+        except Exception as e:
+            if attempt == max_retries - 1:
+                raise
+            await asyncio.sleep(1 + attempt * 2)
+            logger.warning(f"Повтор {attempt + 1} для отправки сообщения")
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_html(
-        f"Привет, {update.effective_user.mention_html()}! Я твой мотивационный бот."
+    await safe_send_message(
+        update,
+        f"Привет, {update.effective_user.mention_html()}! Я твой мотивационный бот.",
+        parse_mode="HTML"
     )
 
 async def quote(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(random.choice(MOTIVATIONAL_PHRASES))
+    await safe_send_message(update, random.choice(MOTIVATIONAL_PHRASES))
 
-async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(f"Напиши /quote для мотивации!")
+# Регистрация обработчиков
+handlers = [
+    CommandHandler("start", start),
+    CommandHandler("quote", quote),
+    MessageHandler(filters.TEXT & ~filters.COMMAND, 
+        lambda u, c: safe_send_message(u, "Напиши /quote для мотивации"))
+]
+for handler in handlers:
+    application.add_handler(handler)
 
-# Добавляем обработчики
-application.add_handler(CommandHandler("start", start))
-application.add_handler(CommandHandler("quote", quote))
-application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
-
-# Роут для пробуждения сервиса
+# Эндпоинты
 @app.route('/wakeup')
 def wakeup():
-    return "OK", 200
+    return {"status": "alive"}, 200
 
-# Роут для вебхука с обработкой ошибок
 @app.route('/webhook', methods=['POST'])
 async def webhook():
     try:
         update = Update.de_json(request.get_json(), application.bot)
         await application.process_update(update)
-        return 'ok', 200
-    except telegram.error.TimedOut:
-        logging.warning("Таймаут соединения, повторяю запрос...")
-        await asyncio.sleep(1)
-        return await webhook()
+        return {"status": "ok"}, 200
     except Exception as e:
-        logging.error(f"Ошибка: {str(e)}")
-        return 'error', 500
+        logger.error(f"Ошибка обработки обновления: {e}")
+        return {"status": "error"}, 500
 
-# Асинхронная инициализация
-async def setup():
+# Запуск и управление жизненным циклом
+async def startup():
     await application.initialize()
     await application.start()
     await application.bot.set_webhook(
         url="https://mytestbot-bwf9.onrender.com/webhook",
-        max_connections=1
+        max_connections=2,
+        allowed_updates=["message", "callback_query"]
     )
 
-# Запуск приложения
+async def shutdown():
+    await application.stop()
+    await application.shutdown()
+
 if __name__ == '__main__':
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    loop.run_until_complete(setup())
     
     try:
+        loop.run_until_complete(startup())
         app.run(host='0.0.0.0', port=10000)
+    except KeyboardInterrupt:
+        pass
     finally:
-        loop.run_until_complete(application.stop())
+        loop.run_until_complete(shutdown())
+        loop.close()
