@@ -19,12 +19,42 @@ if not TOKEN:
     logging.error("Токен бота не найден! Убедись, что переменная окружения TELEGRAM_BOT_TOKEN установлена.")
     exit(1)
 
-# Здесь будут наши мотивирующие фразы
-MOTIVATIONAL_PHRASES = [
-    "Невозможное - это всего лишь громкое слово, которое бросают люди, которым легче жить в привычном мире, чем найти в себе силы его изменить. [Nelson Mandela]",
-    "Единственный способ делать великие дела - это любить то, что ты делаешь. [Steve Jobs]",
-    "Успех не окончателен, неудачи не фатальны: имеет значение лишь мужество продолжать. [Winston Churchill]"
-]
+MOTIVATIONAL_PHRASES = [] # Теперь это будет пустой список, который мы заполним из файла
+QUOTES_FILE = "quotes.txt" # Имя файла с цитатами
+
+# Функция для загрузки фраз из файла
+def load_quotes(filename):
+    phrases = []
+    try:
+        with open(filename, "r", encoding="utf-8") as f: # Открываем файл для чтения
+            for line in f:
+                line = line.strip() # Удаляем лишние пробелы и символы новой строки
+                if line: # Проверяем, что строка не пустая
+                    phrases.append(line)
+    except FileNotFoundError:
+        logging.error(f"Файл с цитатами '{filename}' не найден!")
+        return [] # Возвращаем пустой список, если файл не найден
+    except Exception as e:
+        logging.error(f"Ошибка при чтении файла '{filename}': {e}")
+        return []
+    
+    if not phrases: # Если файл пустой или все строки были пустыми
+        logging.warning(f"Файл с цитатами '{filename}' пуст или содержит только пустые строки.")
+    
+    return phrases
+
+# Загружаем фразы при старте бота
+MOTIVATIONAL_PHRASES = load_quotes(QUOTES_FILE)
+
+# Если фразы не загрузились, добавим дефолтные, чтобы бот не был пустым
+if not MOTIVATIONAL_PHRASES:
+    logging.warning("Фразы не загружены из файла. Используются дефолтные фразы.")
+    MOTIVATIONAL_PHRASES = [
+        "Если нет ветра, берись за весла. Это дефолтная фраза.",
+        "Даже самый длинный путь начинается с первого шага. Это тоже дефолтная фраза."
+    ]
+
+# ... (остальной код остается без изменений, включая функции start, quote, echo и main)
 
 
 # Функция-обработчик для команды /start
@@ -32,7 +62,7 @@ async def start(update: Update, context):
     """Отправляет сообщение, когда получена команда /start."""
     user = update.effective_user
     await update.message.reply_html(
-        f"Привет, {user.mention_html()}! Я твой Мотивационный Гуру. Напиши /quote, чтобы получить мощную цитату!",
+        f"Привет, {user.mention_html()}! Меня зовут Ирина Нечитайло, и я твой мотивационный гуру. Просто напиши /quote, и я пришлю тебе авторский мотиватор — созданный именно для тебя!",
     )
     logging.info(f"Получена команда /start от пользователя {user.full_name}")
 
@@ -47,7 +77,7 @@ async def quote(update: Update, context):
 async def echo(update: Update, context):
     """Отвечает на любое текстовое сообщение, повторяя его."""
     text = update.message.text
-    await update.message.reply_text(f"Я не понял '{text}'. Если тебе нужна мотивация, напиши /quote. Если хочешь начать сначала, напиши /start.")
+    await update.message.reply_text(f"В смысле '{text}'? Если тебе нужна мотивация, значит напиши /quote. Если хочешь начать сначала, напиши /start.")
     logging.info(f"Получено сообщение: '{text}' от пользователя {update.effective_user.full_name}")
 
 
