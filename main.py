@@ -1,9 +1,11 @@
 from dotenv import load_dotenv
-load_dotenv() # Загружает переменные из .env
-# main.py
+load_dotenv()
+
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 import os
 import logging
+from telegram import Update # Импортируем здесь, чтобы избежать циклической зависимости
+import random # Нам понадобится рандом для фраз!
 
 # Включаем логирование, чтобы видеть, что происходит
 logging.basicConfig(
@@ -11,53 +13,58 @@ logging.basicConfig(
     level=logging.INFO
 )
 
-# Заменяем на токен, который ты получил от BotFather
-# В идеале, ты должен будешь получить его из переменных окружения, но пока так
-# TOKEN = "ТВОЙ_ТОКЕН_ЗДЕСЬ"
-# Вместо TOKEN = "ТВОЙ_ТОКЕН_ЗДЕСЬ", мы будем использовать переменную окружения
-# Это безопасно и правильно. Мы настроим это позже на Render.com
+# Получаем токен бота из переменных окружения
 TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN") 
 if not TOKEN:
     logging.error("Токен бота не найден! Убедись, что переменная окружения TELEGRAM_BOT_TOKEN установлена.")
     exit(1)
 
+# Здесь будут наши мотивирующие фразы
+MOTIVATIONAL_PHRASES = [
+    "Невозможное - это всего лишь громкое слово, которое бросают люди, которым легче жить в привычном мире, чем найти в себе силы его изменить. [Nelson Mandela]",
+    "Единственный способ делать великие дела - это любить то, что ты делаешь. [Steve Jobs]",
+    "Успех не окончателен, неудачи не фатальны: имеет значение лишь мужество продолжать. [Winston Churchill]"
+]
+
 
 # Функция-обработчик для команды /start
-async def start(update, context):
+async def start(update: Update, context):
     """Отправляет сообщение, когда получена команда /start."""
     user = update.effective_user
     await update.message.reply_html(
-        f"Привет, {user.mention_html()}! Я твой новый брутальный бот. Что будем творить? ААА?",
-        # reply_markup=ForceReply(selective=True), # Это если хочешь, чтобы он отвечал на твое сообщение
+        f"Привет, {user.mention_html()}! Я твой Мотивационный Гуру. Напиши /quote, чтобы получить мощную цитату!",
     )
     logging.info(f"Получена команда /start от пользователя {user.full_name}")
 
-# Функция-обработчик для обычных текстовых сообщений
-async def echo(update, context):
+# Новая функция-обработчик для команды /quote
+async def quote(update: Update, context):
+    """Отправляет случайную мотивирующую цитату."""
+    random_quote = random.choice(MOTIVATIONAL_PHRASES) # Выбираем случайную фразу
+    await update.message.reply_text(random_quote)
+    logging.info(f"Отправлена цитата пользователю {update.effective_user.full_name}")
+
+# Функция-обработчик для обычных текстовых сообщений (можно ее изменить, если захочешь)
+async def echo(update: Update, context):
     """Отвечает на любое текстовое сообщение, повторяя его."""
     text = update.message.text
-    await update.message.reply_text(f"Ты сказал: '{text}'. Могу повторить, если хочешь. Я создан для более серьезных дел. Ясно тебе или нет?")
+    await update.message.reply_text(f"Я не понял '{text}'. Если тебе нужна мотивация, напиши /quote. Если хочешь начать сначала, напиши /start.")
     logging.info(f"Получено сообщение: '{text}' от пользователя {update.effective_user.full_name}")
+
 
 def main():
     """Запускает бота."""
-    # Создаем объект Application и передаем ему токен бота.
     application = Application.builder().token(TOKEN).build()
 
     # Добавляем обработчики команд.
-    # CommandHandler('start', start) - означает, что когда пользователь пишет /start,
-    # вызывается функция start.
     application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("quote", quote)) # Новый обработчик для команды /quote
 
     # Добавляем обработчик для любых текстовых сообщений.
-    # MessageHandler(filters.TEXT & ~filters.COMMAND, echo) - означает,
-    # что если это текст И НЕ команда, то вызывается функция echo.
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
 
     # Запускаем бота в режиме polling. Он будет постоянно проверять новые сообщения.
-    logging.info("Бот запущен в режиме polling. Ожидаю сообщений...")
+    logging.info("Мотивационный бот запущен в режиме polling. Ожидаю сообщений...")
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == "__main__":
-    from telegram import Update # Импортируем здесь, чтобы избежать циклической зависимости
     main()
