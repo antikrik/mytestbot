@@ -1,0 +1,4 @@
+services:
+  - type: web
+    name: mytestbot
+    port: 10000
