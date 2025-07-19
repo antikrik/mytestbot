@@ -1,14 +1,10 @@
 from dotenv import load_dotenv
 load_dotenv()
 
-from flask import Flask, request
-from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
-from telegram.request import HTTPXRequest
 import os
 import logging
 import random
-import asyncio
 
 # Настройка логирования
 logging.basicConfig(
@@ -37,83 +33,33 @@ def load_quotes(filename="quotes.txt"):
 
 MOTIVATIONAL_PHRASES = load_quotes()
 
-# Создаем Flask-приложение
-app = Flask(__name__)
+# Обработчики команд
+async def start(update, context):
+    await update.message.reply_text(
+        "Привет! Я твой мотивационный бот. Напиши /quote чтобы получить случайную цитату."
+    )
 
-# Инициализация бота с увеличенными таймаутами
-application = Application.builder() \
-    .token(TOKEN) \
-    .request(HTTPXRequest(
-        connection_pool_size=10,  # Увеличено количество соединений
-        connect_timeout=30,
-        read_timeout=30,
-        write_timeout=30,
-        pool_timeout=30
-    )) \
-    .build()
+async def quote(update, context):
+    await update.message.reply_text(random.choice(MOTIVATIONAL_PHRASES))
 
-# Простые обработчики команд
-async def start(update: Update, context):
-    try:
-        await update.message.reply_text(
-            "Привет! Я твой мотивационный бот. Напиши /quote чтобы получить случайную цитату."
-        )
-    except Exception as e:
-        logger.error(f"Ошибка отправки сообщения: {e}")
+async def echo(update, context):
+    await update.message.reply_text("Напиши /quote чтобы получить мотивационную цитату")
 
-async def quote(update: Update, context):
-    try:
-        quote = random.choice(MOTIVATIONAL_PHRASES)
-        await update.message.reply_text(quote)
-    except Exception as e:
-        logger.error(f"Ошибка отправки цитаты: {e}")
+def main():
+    # Создаем приложение
+    application = Application.builder().token(TOKEN).build()
 
-async def echo(update: Update, context):
-    try:
-        await update.message.reply_text("Напиши /quote чтобы получить мотивационную цитату")
-    except Exception as e:
-        logger.error(f"Ошибка обработки сообщения: {e}")
+    # Регистрируем обработчики
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("quote", quote))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
 
-# Регистрация обработчиков
-application.add_handler(CommandHandler("start", start))
-application.add_handler(CommandHandler("quote", quote))
-application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
+    # Запускаем бота в режиме Long Polling
+    logger.info("Бот запущен в режиме Long Polling...")
+    application.run_polling(
+        allowed_updates=Update.ALL_TYPES,
+        drop_pending_updates=True
+    )
 
-# Вебхук с базовой обработкой ошибок
-@app.route('/webhook', methods=['POST'])
-async def webhook():
-    try:
-        update = Update.de_json(request.get_json(), application.bot)
-        await application.process_update(update)
-        return 'ok', 200
-    except Exception as e:
-        logger.error(f"Ошибка обработки вебхука: {e}")
-        return 'error', 500
-
-# Эндпоинт для поддержания активности
-@app.route('/wakeup')
-def wakeup():
-    return 'ok', 200
-
-# Запуск приложения
 if __name__ == '__main__':
-    async def setup():
-        await application.initialize()
-        await application.start()
-        await application.bot.set_webhook(
-            url="https://mytestbot-bwf9.onrender.com/webhook",
-            max_connections=10,  # Увеличено максимальное количество соединений
-            allowed_updates=["message"]
-        )
-    
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    
-    try:
-        loop.run_until_complete(setup())
-        app.run(host='0.0.0.0', port=10000)
-    except Exception as e:
-        logger.error(f"Ошибка запуска: {e}")
-    finally:
-        loop.run_until_complete(application.stop())
-        loop.close()
+    main()
