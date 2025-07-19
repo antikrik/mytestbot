@@ -50,6 +50,12 @@ def load_quotes(filename):
 
 MOTIVATIONAL_PHRASES = load_quotes(QUOTES_FILE)
 
+# Создаем Flask-приложение
+app = Flask(__name__)
+
+# Инициализация бота
+application = Application.builder().token(TOKEN).build()
+
 # Обработчики команд
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -65,29 +71,41 @@ async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     await update.message.reply_text(f"В смысле '{text}'? Напиши /quote для мотивации!")
 
-# Создаем Flask-приложение
-app = Flask(__name__)
-
-# Инициализация бота
-application = Application.builder().token(TOKEN).build()
+# Добавляем обработчики после инициализации
 application.add_handler(CommandHandler("start", start))
 application.add_handler(CommandHandler("quote", quote))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
 
-# Роут для вебхука (синхронная версия)
+# Инициализируем приложение перед использованием
+async def initialize_app():
+    await application.initialize()
+    await application.start()
+    return application
+
+# Роут для вебхука
 @app.route('/webhook', methods=['POST'])
-def webhook():
-    update = Update.de_json(request.get_json(), application.bot)
-    asyncio.run(application.process_update(update))  # Запуск асинхронного кода синхронно
-    return 'ok', 200
+async def webhook():
+    try:
+        update = Update.de_json(request.get_json(), application.bot)
+        await application.process_update(update)
+        return 'ok', 200
+    except Exception as e:
+        logging.error(f"Error processing update: {e}")
+        return 'error', 500
 
 # Асинхронная функция для установки вебхука
-async def set_webhook():
+async def setup():
     WEBHOOK_URL = "https://mytestbot-bwf9.onrender.com/webhook"
+    await application.initialize()
+    await application.start()
     await application.bot.set_webhook(WEBHOOK_URL)
+    return application
 
 # Запуск Flask
 if __name__ == '__main__':
-    # Запускаем установку вебхука
-    asyncio.run(set_webhook())
+    # Инициализируем и настраиваем вебхук
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(setup())
+    
+    # Запускаем Flask
     app.run(host='0.0.0.0', port=10000)
